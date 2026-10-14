@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAMSA Pit Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --border: #e5e7eb;
+      --muted: #6b7280;
+      --card: #f9fafb;
+      --accent: #10b981;
+      --danger: #ef4444;
+      --hover: #f3f4f6;
+    }
+    .dark {
+      --bg: #0f172a;
+      --fg: #e2e8f0;
+      --border: #334155;
+      --muted: #94a3b8;
+      --card: #1e293b;
+      --accent: #34d399;
+      --danger: #f87171;
+      --hover: #1e293b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* Menubar */
+    .menubar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .menubar-left, .menubar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--fg);
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .btn:hover { background: var(--hover); }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 500;
+    }
+    .btn-primary:hover { filter: brightness(1.08); }
+    .btn-danger {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; }
+    .version { font-size: 0.8rem; color: var(--muted); }
+
+    /* Admin bar */
+    .admin-bar {
+      padding: 0.65rem 1.25rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
+    }
+
+    /* Table */
+    .table-wrap {
+      padding: 0.75rem 1rem 3rem;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 1.15rem;
+    }
+    th {
+      text-align: left;
+      padding: 0.7rem 0.9rem;
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+      color: var(--muted);
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    td {
+      padding: 0.7rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:hover td { background: var(--card); }
+    .team-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-weight: 600;
+      font-size: 1.15rem;
+      min-width: 160px;
+    }
+    .color-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .driver-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+    .driver-name {
+      padding: 0.2rem 0.35rem;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    .driver-name.editable {
+      cursor: pointer;
+    }
+    .driver-name.editable:hover {
+      background: color-mix(in srgb, var(--accent) 22%, transparent);
+      text-decoration: underline;
+    }
+    .pits-0 { color: #ef4444; }       /* Red */
+    .pits-1 { color: #f97316; }       /* Orange */
+    .pits-2 { color: #eab308; }       /* Yellow */
+    .pits-3 { color: #22c55e; }       /* Green */
+    .pits-4 { color: #0ea5e9; }       /* Sky blue */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.5rem;
+      border: 1px solid color-mix(in srgb, var(--fg) 22%, transparent);
+      border-radius: 5px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .badge.zero { opacity: 0.5; }
+    .time-ago {
+      font-size: 0.95rem;
+      color: var(--muted);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+    }
+    .empty { color: var(--muted); font-style: italic; font-size: 1.05rem; }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 1rem;
+    }
+    .modal {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.4rem;
+      width: min(400px, 100%);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+    .modal h2 {
+      margin-bottom: 1rem;
+      font-size: 1.15rem;
+    }
+    .modal label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .modal input[type="text"],
+    .modal input[type="color"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      padding: 0.42rem 0.6rem;
+      border-radius: 6px;
+      margin-bottom: 0.8rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+    .modal input[type="color"] {
+      height: 38px;
+      padding: 3px;
+      cursor: pointer;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--muted);
+    }
+    .empty-state p { margin-bottom: 1rem; }
+
+    .live { display:flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--muted); }
+    .live-dot { width:8px; height:8px; border-radius:50%; background:#eab308; }
+    .live.on .live-dot { background:#22c55e; }
+    .live.off .live-dot { background:#ef4444; }
+    .undo-btn { padding:0.05rem 0.4rem; font-size:0.8rem; line-height:1.3; }
+    .time-ago.open { color: var(--accent); font-weight: 700; }
+
+    @media (max-width: 640px) {
+      table { font-size: 1rem; }
+      .team-cell, .driver-name { font-size: 1rem; }
+      .badge, .time-ago { font-size: 0.85rem; }
+      th, td { padding: 0.55rem 0.6rem; }
+      .menubar { padding: 0.5rem 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Menubar -->
+    <div class="menubar">
+      <div class="menubar-left">
+        <button class="btn" id="adminToggle">Admin Mode</button>
+        <span id="adminStatus" style="font-size:0.8rem;color:var(--muted)"></span>
+      </div>
+      <div class="menubar-right">
+        <span class="live" id="live" title="Connection status"><span class="live-dot"></span><span id="liveText">connecting</span></span>
+        <span class="version">v2.0</span>
+        <button class="btn btn-sm" id="themeToggle" title="Toggle theme">🌙</button>
+      </div>
+    </div>
+
+    <!-- Admin bar -->
+    <div class="admin-bar" id="adminBar" style="display:none">
+      <button class="btn btn-primary btn-sm" id="addTeamBtn">+ Add Team</button>
+      <button class="btn btn-sm" id="loadDemoBtn">Load Demo Teams</button>
+      <button class="btn btn-sm" id="resetBtn">Reset All</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Team</th>
+            <th>GTLS</th>
+            <th>GTSA</th>
+            <th id="actionsHeader" style="width:90px;display:none"></th>
+          </tr>
+        </thead>
+        <tbody id="teamTable"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none">
+        <p>No teams yet.</p>
+        <button class="btn btn-primary" id="emptyLoadDemo">Load Demo Teams</button>
+      </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-backdrop" id="modal" style="display:none">
+      <div class="modal">
+        <h2 id="modalTitle">Add Team</h2>
+        <label>Team name (can be blank)</label>
+        <input type="text" id="formName" placeholder="e.g. Dutch Divebomb" />
+        <label>Color</label>
+        <input type="color" id="formColor" value="#10b981" />
+        <label>GTLS Driver</label>
+        <input type="text" id="formGtls" placeholder="Driver name or leave blank" />
+        <label>GTSA Driver</label>
+        <input type="text" id="formGtsa" placeholder="Driver name or leave blank" />
+        <div class="modal-actions">
+          <button class="btn btn-danger btn-sm" id="deleteBtn" style="display:none">Delete</button>
+          <span style="flex:1"></span>
+          <button class="btn" id="cancelBtn">Cancel</button>
+          <button class="btn btn-primary" id="saveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== STATE ==========
+    const TOKEN_KEY = 'samsa-pit-admin-token';
+    let token = sessionStorage.getItem(TOKEN_KEY) || null;
+    let admin = false;
+    let editingId = null;
+    let state = { rev: 0, teams: [], pitDurationMs: 25 * 60 * 1000 };
+    let clockOffset = 0; // serverTime - localTime, so countdowns match for everyone
+
+    // ========== SERVER ==========
+    async function api(method, path, body) {
+      const res = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.status === 401 && path !== '/api/login') {
+        setAdmin(false);
+        alert('Admin session expired - please log in again.');
+        throw new Error('unauthorized');
+      }
+      if (!res.ok) throw new Error(json.error || 'Request failed');
+      return json;
+    }
+
+    function applyState(s) {
+      if (s.rev < state.rev) return; // ignore stale updates
+      state = s;
+      clockOffset = s.serverNow - Date.now();
+      render();
+    }
+
+    async function mutate(method, path, body) {
+      try { applyState(await api(method, path, body)); }
+      catch (e) { if (e.message !== 'unauthorized') alert(e.message); }
+    }
+
+    function connect() {
+      const live = document.getElementById('live');
+      const text = document.getElementById('liveText');
+      const es = new EventSource('/api/events');
+      es.onopen = () => { live.className = 'live on'; text.textContent = 'live'; };
+      es.onmessage = e => applyState(JSON.parse(e.data));
+      es.onerror = () => { live.className = 'live off'; text.textContent = 'reconnecting'; };
+    }
+
+    // ========== HELPERS ==========
+    function nowServer() { return Date.now() + clockOffset; }
+
+    function timeAgo(ts) {
+      const remaining = Math.max(0, Math.ceil((state.pitDurationMs - (nowServer() - ts)) / 1000));
+      if (remaining === 0) return 'OPEN';
+      return Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0');
+    }
+
+    // Updates only the countdown text each second (no full re-render, so clicks are never lost)
+    function tick() {
+      document.querySelectorAll('.time-ago[data-ts]').forEach(el => {
+        const t = timeAgo(Number(el.dataset.ts));
+        el.textContent = t;
+        el.classList.toggle('open', t === 'OPEN');
+      });
+    }
+
+    // ========== RENDER ==========
+    function render() {
+      document.getElementById('adminBar').style.display = admin ? 'flex' : 'none';
+      document.getElementById('actionsHeader').style.display = admin ? '' : 'none';
+      document.getElementById('adminToggle').textContent = admin ? 'Exit Admin' : 'Admin Mode';
+      document.getElementById('adminStatus').textContent = admin ? '• editing enabled' : '';
+
+      const tbody = document.getElementById('teamTable');
+      const empty = document.getElementById('emptyState');
+      tbody.innerHTML = '';
+
+      if (state.teams.length === 0) {
+        empty.style.display = 'block';
+        document.getElementById('emptyLoadDemo').style.display = admin ? '' : 'none';
+        return;
+      }
+      empty.style.display = 'none';
+
+      [...state.teams].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)).forEach(team => {
+        const tr = document.createElement('tr');
+
+        const teamTd = document.createElement('td');
+        const cell = document.createElement('div');
+        cell.className = 'team-cell';
+        const dot = document.createElement('span');
+        dot.className = 'color-dot';
+        dot.style.background = team.color || '#888';
+        const nm = document.createElement('span');
+        nm.className = team.name ? '' : 'empty';
+        nm.textContent = team.name || '(unnamed)';
+        cell.append(dot, nm);
+        teamTd.appendChild(cell);
+        tr.appendChild(teamTd);
+
+        tr.appendChild(makeDriverCell(team, 'gtls'));
+        tr.appendChild(makeDriverCell(team, 'gtsa'));
+
+        if (admin) {
+          const actTd = document.createElement('td');
+          const editBtn = document.createElement('button');
+          editBtn.className = 'btn btn-sm';
+          editBtn.textContent = 'Edit';
+          editBtn.onclick = () => openEdit(team);
+          actTd.appendChild(editBtn);
+          tr.appendChild(actTd);
+        }
+        tbody.appendChild(tr);
+      });
+      tick();
+    }
+
+    function makeDriverCell(team, key) {
+      const td = document.createElement('td');
+      const d = team[key];
+      if (!d || !d.name) {
+        td.innerHTML = '<span class="empty">—</span>';
+        return td;
+      }
+      const pits = d.pits || [];
+      const count = pits.length;
+      const div = document.createElement('div');
+      div.className = 'driver-cell';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'driver-name pits-' + Math.min(count, 4) + (admin ? ' editable' : '');
+      nameSpan.textContent = d.name;
+      if (admin) {
+        nameSpan.title = 'Click to add pit stop';
+        nameSpan.onclick = () => mutate('POST', `/api/teams/${team.id}/pit`, { slot: key });
+      }
+      div.appendChild(nameSpan);
+
+      const badge = document.createElement('span');
+      badge.className = 'badge' + (count ? '' : ' zero');
+      badge.textContent = `${count} pit stop${count === 1 ? '' : 's'}`;
+      div.appendChild(badge);
+
+      if (count) {
+        const ago = document.createElement('span');
+        ago.className = 'time-ago';
+        ago.dataset.ts = pits[count - 1];
+        div.appendChild(ago);
+      }
+
+      if (admin && count) {
+        const undo = document.createElement('button');
+        undo.className = 'btn undo-btn';
+        undo.textContent = '↩';
+        undo.title = 'Undo last pit stop';
+        undo.onclick = () => mutate('POST', `/api/teams/${team.id}/pit`, { slot: key, undo: true });
+        div.appendChild(undo);
+      }
+
+      td.appendChild(div);
+      return td;
+    }
+
+    // ========== ADMIN ACTIONS ==========
+    function openAdd() {
+      editingId = null;
+      document.getElementById('modalTitle').textContent = 'Add Team';
+      document.getElementById('formName').value = '';
+      document.getElementById('formColor').value = '#10b981';
+      document.getElementById('formGtls').value = '';
+      document.getElementById('formGtsa').value = '';
+      document.getElementById('deleteBtn').style.display = 'none';
+      document.getElementById('modal').style.display = 'flex';
+      document.getElementById('formName').focus();
+    }
+
+    function openEdit(team) {
+      editingId = team.id;
+      document.getElementById('modalTitle').textContent = 'Edit Team';
+      document.getElementById('formName').value = team.name || '';
+      document.getElementById('formColor').value = team.color || '#10b981';
+      document.getElementById('formGtls').value = team.gtls?.name || '';
+      document.getElementById('formGtsa').value = team.gtsa?.name || '';
+      document.getElementById('deleteBtn').style.display = '';
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+      editingId = null;
+    }
+
+    async function saveTeam() {
+      const body = {
+        name: document.getElementById('formName').value,
+        color: document.getElementById('formColor').value,
+        gtls: document.getElementById('formGtls').value,
+        gtsa: document.getElementById('formGtsa').value
+      };
+      const id = editingId;
+      closeModal();
+      await mutate(id ? 'PUT' : 'POST', id ? `/api/teams/${id}` : '/api/teams', body);
+    }
+
+    async function deleteTeam() {
+      if (!editingId || !confirm('Delete this team?')) return;
+      const id = editingId;
+      closeModal();
+      await mutate('DELETE', `/api/teams/${id}`);
+    }
+
+    async function loadDemo() {
+      if (state.teams.length && !confirm('Replace current teams with demo data?')) return;
+      await mutate('POST', '/api/demo');
+    }
+
+    async function resetAll() {
+      if (!confirm('Delete ALL teams and reset?')) return;
+      await mutate('POST', '/api/reset');
+    }
+
+    function setAdmin(on, newToken) {
+      admin = on;
+      token = on ? (newToken || token) : null;
+      if (on) sessionStorage.setItem(TOKEN_KEY, token); else sessionStorage.removeItem(TOKEN_KEY);
+      render();
+    }
+
+    async function toggleAdmin() {
+      if (admin) return setAdmin(false);
+      const password = prompt('Enter admin password:');
+      if (password === null) return;
+      try {
+        const { token: t } = await api('POST', '/api/login', { password });
+        setAdmin(true, t);
+      } catch (e) { alert(e.message); }
+    }
+
+    // ========== INIT ==========
+    async function init() {
+      // Theme (stays per-device)
+      const isDark = localStorage.getItem('theme') === 'dark';
+      if (isDark) document.documentElement.classList.add('dark');
+      const themeBtn = document.getElementById('themeToggle');
+      themeBtn.textContent = isDark ? '☀️' : '🌙';
+      themeBtn.onclick = () => {
+        document.documentElement.classList.toggle('dark');
+        const dark = document.documentElement.classList.contains('dark');
+        localStorage.setItem('theme', dark ? 'dark' : 'light');
+        themeBtn.textContent = dark ? '☀️' : '🌙';
+      };
+
+      document.getElementById('adminToggle').onclick = toggleAdmin;
+      document.getElementById('addTeamBtn').onclick = openAdd;
+      document.getElementById('loadDemoBtn').onclick = loadDemo;
+      document.getElementById('emptyLoadDemo').onclick = loadDemo;
+      document.getElementById('resetBtn').onclick = resetAll;
+      document.getElementById('cancelBtn').onclick = closeModal;
+      document.getElementById('saveBtn').onclick = saveTeam;
+      document.getElementById('deleteBtn').onclick = deleteTeam;
+      document.getElementById('modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
+
+      // Restore admin session after a page refresh
+      if (token) {
+        try { await api('GET', '/api/me'); admin = true; } catch { token = null; sessionStorage.removeItem(TOKEN_KEY); }
+      }
+
+      render();
+      connect();
+      setInterval(tick, 1000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

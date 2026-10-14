@@ -1,0 +1,8 @@
+{
+  "name": "samsa-pit-tracker",
+  "version": "2.0.0",
+  "description": "Live pit stop tracker with server-side storage",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
